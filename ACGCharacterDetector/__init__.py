@@ -1,9 +1,10 @@
 import io
 from PIL import Image
-from flask import Flask, jsonify,request
-from flask.wrappers import JSONMixin
+from flask_cors import CORS
+from flask import Flask, jsonify,request,render_template
 
 app = Flask(__name__)
+CORS(app)
 
 # 读取配置文件
 import configparser
@@ -19,7 +20,7 @@ from .yolo import model as acgmodel
 
 @app.route('/')
 def hello():
-    return 'Hello World!'
+    return render_template('index.html')
 
 
 @app.route('/detect', methods=['POST'])
