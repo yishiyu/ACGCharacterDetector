@@ -108,7 +108,7 @@
         let formData = new FormData();
         formData.append("image", uploader.files[0]);
 
-        axios.post("http://localhost:5000/detect", formData, {
+        axios.post("http://acg.yishiyu.world/detect", formData, {
             headers: {
                 'Content-Type': 'application/json;charset=UTF-8'
             },
