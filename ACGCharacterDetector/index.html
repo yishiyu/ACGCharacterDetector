@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 导入Vue -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14"></script>
+    <!-- 引入样式 -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/element-ui@2.15.5/lib/theme-chalk/index.css"
+    />
+    <!-- 导入基于断点的自动布局CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/element-ui@2.15.5/lib/theme-chalk/display.css"
+    />
+    <!-- 引入组件库 -->
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <!-- 引入异步通信库 -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <title>动漫人物识别</title>
+  </head>
+
+  <body>
+    <div id="root">
+      <!-- 标题栏 -->
+      <el-row class="title-block">
+        <el-col :xs="0" :sm="1" :md="2" :lg="3" :xl="3">
+          <div class="grid-content"></div>
+        </el-col>
+        <el-col :xs="24" :sm="22" :md="20" :lg="18" :xl="18">
+          <div class="bg-main content-center">
+            <h2>动漫人物识别</h2>
+            <p class="annotation">
+              更多信息可以参考:
+              <a href="https://github.com/yishiyu/ACGCharacterDetector">
+                yishiyu/ACGCharacterDetector
+              </a>
+            </p>
+            <p class="annotation">
+              支持的角色列表:
+              <a
+                href="https://github.com/yishiyu/ACGCharacterDetector/blob/main/ACGCharacterDetector/static/zh-CN.json"
+              >
+                Supported characters.
+              </a>
+            </p>
+            <p class="annotation">
+              服务器只能用CPU跑模型,可能会有点慢,传太大的图服务器可能莫名出错
+              .⁄(⁄ ⁄•⁄ω⁄•⁄ ⁄)⁄.
+            </p>
+            <br />
+          </div>
+        </el-col>
+        <el-col :xs="0" :sm="1" :md="2" :lg="3" :xl="3">
+          <div class="grid-content"></div>
+        </el-col>
+      </el-row>
+
+      <!-- 图片上传栏/头像识别结果栏 -->
+      <el-row>
+        <!-- 图片上传与预览 -->
+        <el-col
+          :xs="{span: 22, offset: 1}"
+          :sm="{span: 12, offset: 1}"
+          :md="{span: 12, offset: 1}"
+          :lg="{span: 10, offset: 2}"
+          :xl="{span: 9, offset: 3}"
+          class="upload-block content-center"
+        >
+          <h2>Input</h2>
+          <el-upload
+            class="image-uploader content-center"
+            action="/detect"
+            name="image"
+            :show-file-list="false"
+            :on-success="handleImageSuccess"
+            :before-upload="beforeImageUpload"
+          >
+            <img
+              id="displayImage"
+              v-if="imageUrl"
+              :src="imageUrl"
+              class="image-preview"
+            />
+
+            <i v-else class="el-icon-plus image-uploader-icon"></i>
+          </el-upload>
+        </el-col>
+
+        <!-- 头像识别结果展示 -->
+        <!-- 仅在大屏上显示 -->
+        <el-col
+          class="result-display hidden-xs-only"
+          :xs="{span: 0, offset: 0}"
+          :sm="{span: 8, offset: 1}"
+          :md="{span: 9, offset: 2}"
+          :lg="{span: 10, offset: 2}"
+          :xl="{span: 10, offset: 2}"
+        >
+          <h2>Output</h2>
+          <!-- 渲染全部识别结果 -->
+          <el-row v-for="(result,index) in recognizeResult">
+            <div class="result-wrapper">
+              <!-- 根据返回结果调整显示框的 css -->
+              <el-col :xs="9" :sm="9" :md="8" :lg="7" :xl="7">
+                <img class="result-image" :src="result.data" />
+              </el-col>
+              <el-col :xs="15" :sm="15" :md="16" :lg="17" :xl="17">
+                <p>{{result.name}}</p>
+                <p>{{result.trans}}</p>
+              </el-col>
+            </div>
+          </el-row>
+        </el-col>
+      </el-row>
+      <!-- 头像识别结果展示 -->
+      <!-- 仅在小屏上显示 -->
+      <el-row class="content-center hidden-sm-and-up">
+        <el-col
+          class="result-display hidden-md-and-up content-center"
+          :span="20"
+          :offset="4"
+        >
+          <h2>Output</h2>
+          <!-- 渲染全部识别结果 -->
+          <el-row v-for="(result,index) in recognizeResult">
+            <div class="result-wrapper">
+              <!-- 根据返回结果调整显示框的 css -->
+              <el-col :xs="9" :sm="9" :md="8" :lg="7" :xl="7">
+                <img class="result-image" :src="result.data" />
+              </el-col>
+              <el-col :xs="15" :sm="15" :md="16" :lg="17" :xl="17">
+                <p>{{result.name}}</p>
+                <p>{{result.trans}}</p>
+              </el-col>
+            </div>
+          </el-row>
+        </el-col>
+      </el-row>
+      <canvas ref="convertCanvas" v-show="false" />
+    </div>
+
+    <script defer>
+      let vm = new Vue({
+        el: "#root",
+        data: function () {
+          return {
+            imageUrl: "",
+            recognizeResult: [],
+          };
+        },
+        mounted() {
+          // 初始化时调整一下
+          this.handleResize();
+          // 注册回调函数监听窗口变化
+          window.addEventListener("resize", this.handleResize);
+        },
+        destroyed() {
+          window.removeEventListener("resize", this.handleResize);
+        },
+        methods: {
+          handleResize() {
+            if (document.getElementById("displayImage")) {
+              let width = document.body.clientWidth;
+              if (width < 1000){
+                document.getElementById("displayImage").style.width = width * 0.7;
+              }
+              // document.getElementById("displayImage").style.maxWidth = width * 0.7;
+            }
+          },
+          handleImageSuccess(res, file) {
+            this.imageUrl = URL.createObjectURL(file.raw);
+
+            // 填充识别结果
+            this.recognizeResult = [];
+            let img = new Image();
+            let reader = new FileReader();
+            reader.readAsDataURL(file.raw);
+            reader.onload = function () {
+              img.src = reader.result;
+              img.onload = function () {
+                let canvas = vm.$refs.convertCanvas;
+
+                let ctx = canvas.getContext("2d");
+
+                for (let i = 0; i < res.length; i++) {
+                  let data = res[i];
+                  let box = data.box;
+                  let width = img.width * (box[2] - box[0]);
+                  let height = img.height * (box[3] - box[1]);
+                  let clipX = img.width * box[0];
+                  let clipY = img.height * box[1];
+                  canvas.width = width;
+                  canvas.height = height;
+                  console.log(res);
+                  ctx.drawImage(
+                    img,
+                    clipX,
+                    clipY,
+                    width,
+                    height,
+                    0,
+                    0,
+                    width,
+                    height
+                  );
+                  //   vm.recognizeResult.push(canvas.toDataURL())
+                  vm.recognizeResult.push({
+                    data: canvas.toDataURL(),
+                    name: data.name,
+                    trans: data.trans,
+                  });
+                }
+              };
+              console.log(vm.recognizeResult);
+            };
+          },
+          beforeImageUpload(file) {
+            const isJPG = file.type === "image/jpeg";
+            const isLt4M = file.size / 1024 / 1024 < 4;
+
+            if (!isJPG) {
+              this.$message.error("上传头像图片只能是 JPG 格式!");
+            }
+            if (!isLt4M) {
+              this.$message.error("上传头像图片大小不能超过 4MB!");
+            }
+            return isJPG && isLt4M;
+          },
+        },
+      });
+    </script>
+    <style>
+      .el-row {
+        margin-bottom: 20px;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      .el-col {
+        border-radius: 4px;
+      }
+
+      .bg-main {
+        border-radius: 4px;
+        min-height: 36px;
+        background: #eeeeee;
+      }
+
+      .grid-content {
+        border-radius: 4px;
+        min-height: 36px;
+      }
+
+      .row-bg {
+        padding: 10px 0;
+        background-color: #f9fafc;
+      }
+
+      .content-center {
+        text-align: center;
+      }
+
+      .content-left {
+        text-align: left;
+      }
+
+      .annotation {
+        color: black;
+        font-size: smaller;
+      }
+
+      .image-uploader .el-upload {
+        border: 1px dashed #d9d9d9;
+        border-radius: 6px;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .image-uploader .el-upload:hover {
+        border-color: #409eff;
+      }
+
+      .image-uploader-icon {
+        font-size: 28px;
+        color: #8c939d;
+        width: 178px;
+        height: 178px;
+        line-height: 178px;
+        text-align: center;
+      }
+
+      .image-preview {
+        max-width: 700px;
+        max-height: 700px;
+        display: block;
+      }
+
+      /* .result-display {
+        max-height: 70%;
+      } */
+
+      .result-image {
+        width: 100px;
+        height: 100px;
+      }
+
+      .result-wrapper {
+        text-align: left;
+      }
+    </style>
+  </body>
+</html>
