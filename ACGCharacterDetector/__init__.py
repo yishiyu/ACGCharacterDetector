@@ -2,7 +2,7 @@ import io
 from logging import log
 from PIL import Image
 from flask_cors import CORS
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, send_file
 
 app = Flask(__name__)
 CORS(app)
@@ -23,7 +23,7 @@ from .models import yolov5, resnet18
 
 @app.route('/')
 def hello():
-    return render_template('index.html')
+    return send_file('index.html')
 
 
 @app.route('/detect', methods=['POST'])
